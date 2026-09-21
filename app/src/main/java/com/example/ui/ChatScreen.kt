@@ -58,6 +58,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.example.ui.components.ApiKeyDialog
 import com.example.ui.components.ChatItemActionDialog
 import com.example.ui.components.ChatInputBar
 import com.example.ui.components.ChatOptionsMenu
@@ -195,8 +196,8 @@ fun ChatScreen(
         }
     }
 
-    // Auto-scroll when messages change
-    LaunchedEffect(uiState.messages.size, uiState.isGenerating) {
+    // Auto-scroll only when a new message is added (eliminates jumping / teleporting)
+    LaunchedEffect(uiState.messages.size) {
         if (uiState.messages.isNotEmpty()) {
             listState.animateScrollToItem(uiState.messages.size - 1)
         }
@@ -229,8 +230,8 @@ fun ChatScreen(
                     coroutineScope.launch { drawerState.close() }
                 },
                 onSettingsClick = {
-                    viewModel.showTopBanner("نسخه MindGPT - اتصال مستقیم هوش مصنوعی فعال است")
                     coroutineScope.launch { drawerState.close() }
+                    viewModel.openApiKeyDialog()
                 }
             )
         }
@@ -551,6 +552,10 @@ fun ChatScreen(
                 viewModel.showTopBanner("میانبر ایجاد شد")
             },
             onArchive = { viewModel.toggleArchiveChat(chat) },
+            onOpenApiKey = {
+                viewModel.dismissChatOptionsMenu()
+                viewModel.openApiKeyDialog()
+            },
             onDelete = { viewModel.deleteChat(chat) }
         )
     }
@@ -560,7 +565,21 @@ fun ChatScreen(
             onDismiss = { viewModel.toggleGetPlusDialog(false) },
             onConfigureApiKey = {
                 viewModel.toggleGetPlusDialog(false)
-                viewModel.showTopBanner("اتصال MindGPT به هوش مصنوعی گوگل به صورت مستقیم فعال است")
+                viewModel.openApiKeyDialog()
+            }
+        )
+    }
+
+    if (uiState.showApiKeyDialog) {
+        ApiKeyDialog(
+            currentKey = uiState.customApiKey,
+            selectedModel = uiState.selectedModel,
+            onDismiss = { viewModel.dismissApiKeyDialog() },
+            onSave = { key, model ->
+                viewModel.saveApiKeyAndModel(key, model)
+            },
+            onClearKey = {
+                viewModel.clearApiKey()
             }
         )
     }

@@ -56,6 +56,7 @@ fun ChatOptionsMenu(
     onFindInChat: () -> Unit,
     onAddToHome: () -> Unit,
     onArchive: () -> Unit,
+    onOpenApiKey: () -> Unit,
     onDelete: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -141,6 +142,13 @@ fun ChatOptionsMenu(
                 title = if (chat.isArchived) "خروج از بایگانی (Unarchive)" else "بایگانی (Archive)",
                 onClick = onArchive,
                 testTag = "menu_archive"
+            )
+
+            MenuItem(
+                icon = Icons.Default.AttachFile,
+                title = "تنظیمات API (Google AI Studio)",
+                onClick = onOpenApiKey,
+                testTag = "menu_api_settings"
             )
 
             HorizontalDivider(
