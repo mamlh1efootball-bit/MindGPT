@@ -1,0 +1,22 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Center AI Brain / Spiral Node -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,34 C42.95,34 34,42.95 34,54 C34,65.05 42.95,74 54,74 C65.05,74 74,65.05 74,54 C74,42.95 65.05,34 54,34 Z M54,39 C62.28,39 69,45.72 69,54 C69,62.28 62.28,69 54,69 C45.72,69 39,62.28 39,54 C39,45.72 45.72,39 54,39 Z" />
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M54,44 C48.48,44 44,48.48 44,54 C44,59.52 48.48,64 54,64 C59.52,64 64,59.52 64,54 C64,48.48 59.52,44 54,44 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,26 L54,34 M54,74 L54,82 M26,54 L34,54 M74,54 L82,54 M34.18,34.18 L39.84,39.84 M68.16,68.16 L73.82,73.82 M73.82,34.18 L68.16,39.84 M39.84,68.16 L34.18,73.82"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round"
+        android:strokeWidth="3.5" />
+    <path
+        android:fillColor="#60A5FA"
+        android:pathData="M54,24 A3,3 0 1,0 54,30 A3,3 0 1,0 54,24 Z M54,78 A3,3 0 1,0 54,84 A3,3 0 1,0 54,78 Z M24,54 A3,3 0 1,0 24,60 A3,3 0 1,0 24,54 Z M78,54 A3,3 0 1,0 78,60 A3,3 0 1,0 78,54 Z" />
+</vector>

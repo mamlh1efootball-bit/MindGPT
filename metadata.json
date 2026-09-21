@@ -1,0 +1,6 @@
+{
+  "name": "MindGPT",
+  "description": "MindGPT: پیشرفته‌ترین دستیار هوش مصنوعی با قابلیت گفتگو، تحلیل عکس، درک عمیق و پاسخ‌های صوتی",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
