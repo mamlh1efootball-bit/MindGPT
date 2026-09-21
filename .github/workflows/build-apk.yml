@@ -5,41 +5,62 @@ on:
     branches: [ "**" ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
-  build:
+  android-apk:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up Java
         uses: actions/setup-java@v4
         with:
+          distribution: temurin
           java-version: '17'
-          distribution: 'temurin'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Decode signing keystore
+        run: |
+          if [ -f debug.keystore.base64 ]; then
+            base64 -d debug.keystore.base64 > debug.keystore 2>/dev/null || true
+          fi
 
       - name: Create .env if missing
         run: |
           if [ ! -f .env ]; then
             cp .env.example .env 2>/dev/null || touch .env
-            echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY || 'MY_GEMINI_API_KEY' }}" >> .env
+            echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY || 'AIzaSyPlaceholderKeyForBuild' }}" >> .env
           fi
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
+      - name: Stage artifacts dir
+        run: mkdir -p artifacts
 
-      - name: Generate Gradle Wrapper if missing
+      - name: Ensure Gradle Wrapper exists
         run: |
-          gradle wrapper --gradle-version 8.7 || true
+          gradle wrapper --gradle-version 8.11.1 || true
           chmod +x gradlew || true
 
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+      - name: Build Android APK
+        run: |
+          if [ -x ./gradlew ]; then
+            ./gradlew --no-daemon --build-cache assembleDebug
+          else
+            gradle --no-daemon --build-cache assembleDebug
+          fi
 
-      - name: Upload APK
+      - name: Collect APK
+        run: |
+          find app/build/outputs/apk -name "*.apk" -exec cp {} artifacts/ \;
+
+      - name: Upload Android APK artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: MindGPT-APK
-          path: app/build/outputs/apk/debug/*.apk
+          name: MindGPT-Android-APK
+          path: artifacts/*.apk
           retention-days: 14
