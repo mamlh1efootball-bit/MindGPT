@@ -31,7 +31,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.Icon
@@ -167,8 +169,12 @@ fun ChatScreen(
             val spokenText: String? =
                 result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
             if (!spokenText.isNullOrBlank()) {
-                viewModel.onInputTextChange(spokenText)
-                viewModel.showTopBanner("صدا دریافت شد")
+                if (uiState.showVoiceMode) {
+                    viewModel.updateVoiceTranscript(spokenText)
+                } else {
+                    viewModel.onInputTextChange(spokenText)
+                }
+                viewModel.showTopBanner("متن از صدا استخراج شد. آماده ارسال", Icons.Default.CheckCircle, Color(0xFF10B981))
             }
         }
     }
@@ -237,6 +243,7 @@ fun ChatScreen(
         }
     ) {
         Scaffold(
+            containerColor = ChatOledBlack,
             topBar = {
                 Column {
                     ChatTopBar(
@@ -317,8 +324,9 @@ fun ChatScreen(
                             try {
                                 val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                                     putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-                                    putExtra(RecognizerIntent.EXTRA_PROMPT, "صحبت کنید...")
+                                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, "fa-IR")
+                                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "fa-IR")
+                                    putExtra(RecognizerIntent.EXTRA_PROMPT, "در حال شنیدن صدای شما... صحبت کنید")
                                 }
                                 speechLauncher.launch(intent)
                             } catch (_: Exception) {
@@ -366,7 +374,6 @@ fun ChatScreen(
                     modifier = Modifier.imePadding()
                 )
             },
-            containerColor = ChatOledBlack,
             modifier = modifier.fillMaxSize()
         ) { innerPadding ->
             Box(
@@ -562,11 +569,7 @@ fun ChatScreen(
 
     if (uiState.showGetPlusDialog) {
         GetPlusDialog(
-            onDismiss = { viewModel.toggleGetPlusDialog(false) },
-            onConfigureApiKey = {
-                viewModel.toggleGetPlusDialog(false)
-                viewModel.openApiKeyDialog()
-            }
+            onDismiss = { viewModel.toggleGetPlusDialog(false) }
         )
     }
 
@@ -598,7 +601,30 @@ fun ChatScreen(
             voiceState = uiState.voiceListeningState,
             transcript = uiState.voiceTranscript,
             onClose = { viewModel.toggleVoiceMode(false) },
-            onSendVoicePrompt = { prompt -> viewModel.sendVoicePrompt(prompt) }
+            onStartSpeechRecognition = {
+                executeWithMicPermission {
+                    try {
+                        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "fa-IR")
+                            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "fa-IR")
+                            putExtra(RecognizerIntent.EXTRA_PROMPT, "در حال شنیدن صدای شما... صحبت کنید")
+                        }
+                        speechLauncher.launch(intent)
+                    } catch (_: Exception) {
+                        viewModel.showTopBanner("سرویس تشخیص صدای گوگل در دسترس نیست")
+                    }
+                }
+            },
+            onSendVoicePrompt = { prompt ->
+                viewModel.toggleVoiceMode(false)
+                viewModel.sendMessage(promptOverride = prompt)
+            },
+            onEditInChat = { prompt ->
+                viewModel.toggleVoiceMode(false)
+                viewModel.onInputTextChange(prompt)
+                viewModel.showTopBanner("متن به کادر پیام منتقل شد", Icons.Default.Edit, Color(0xFF38BDF8))
+            }
         )
     }
 }

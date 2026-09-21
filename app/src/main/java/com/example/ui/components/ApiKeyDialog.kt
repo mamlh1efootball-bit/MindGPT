@@ -266,6 +266,131 @@ fun ApiKeyDialog(
 
             Spacer(modifier = Modifier.height(18.dp))
 
+            // System Instructions Section (Google AI Studio prompt customization)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "دستورالعمل سیستم (System Instructions):",
+                    color = TextPrimaryWhite,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = "Google AI Studio",
+                    color = AccentActionBlue,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "تعیین لحن، نقش و شیوه پاسخ‌دهی هوش مصنوعی دقیقا مثل گوگا استادیو:",
+                color = TextSecondaryGray,
+                fontSize = 11.sp
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            var systemInstructionsInput by remember {
+                mutableStateOf(GeminiClient.getSystemInstructions(context))
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(110.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(ChatSurfaceCard)
+                    .border(1.dp, BorderSubtle, RoundedCornerShape(12.dp))
+                    .padding(10.dp)
+            ) {
+                BasicTextField(
+                    value = systemInstructionsInput,
+                    onValueChange = { systemInstructionsInput = it },
+                    textStyle = TextStyle(
+                        color = TextPrimaryWhite,
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp
+                    ),
+                    cursorBrush = SolidColor(AccentActionBlue),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("system_instructions_input")
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Presets row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                // Preset 1: Default
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(ChatSurfaceHighlight)
+                        .clickable {
+                            systemInstructionsInput = GeminiClient.DEFAULT_SYSTEM_INSTRUCTION
+                        }
+                        .padding(vertical = 6.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "پیش‌فرض استادیو",
+                        color = TextPrimaryWhite,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+
+                // Preset 2: Developer
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(ChatSurfaceHighlight)
+                        .clickable {
+                            systemInstructionsInput = "تو یک مهندس ارشد نرم‌افزار و متخصص برنامه‌نویسی هستی. کدها را با بالاترین کیفیت، تمیز و همراه با توضیح مختصر ارائه بده."
+                        }
+                        .padding(vertical = 6.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "برنامه‌نویس ارشد",
+                        color = TextPrimaryWhite,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+
+                // Preset 3: Persian Translator
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(ChatSurfaceHighlight)
+                        .clickable {
+                            systemInstructionsInput = "تو یک مترجم و نویسنده حرفه‌ای زبان فارسی هستی. متون را روان، سلیس و با اصطلاحات ادبی و امروزی بازنویسی کن."
+                        }
+                        .padding(vertical = 6.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "مترجم و نویسنده",
+                        color = TextPrimaryWhite,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(18.dp))
+
             // Model Selection
             Text(
                 text = "انتخاب مدل هوش مصنوعی (Google Models):",
@@ -276,8 +401,8 @@ fun ApiKeyDialog(
             Spacer(modifier = Modifier.height(8.dp))
 
             ModelOptionItem(
-                title = "Gemini 2.5 Flash (پیشنهادی گوگل)",
-                subtitle = "سریع‌ترین مدل چندوجهی، پاسخ‌های فوری و بهینه برای متن و تصویر",
+                title = "Gemini 2.5 Flash (جدیدترین و سریع‌ترین)",
+                subtitle = "سرعت فوق‌العاده بالا، پردازش تصاویر و متن با استدلال نسل جدید",
                 modelKey = GeminiClient.MODEL_FLASH_25,
                 isSelected = currentSelectedModel == GeminiClient.MODEL_FLASH_25,
                 onSelect = { currentSelectedModel = GeminiClient.MODEL_FLASH_25 }
@@ -286,21 +411,21 @@ fun ApiKeyDialog(
             Spacer(modifier = Modifier.height(6.dp))
 
             ModelOptionItem(
-                title = "Gemini 2.5 Pro (تفکر و استدلال)",
-                subtitle = "قدرتمندترین مدل تحلیلی برای تفکر عمیق و حل مسائل پیچیده",
-                modelKey = GeminiClient.MODEL_PRO_25,
-                isSelected = currentSelectedModel == GeminiClient.MODEL_PRO_25,
-                onSelect = { currentSelectedModel = GeminiClient.MODEL_PRO_25 }
+                title = "Gemini 2.0 Flash (پاسخ بلادرنگ)",
+                subtitle = "پاسخ‌های آنی و فوری زیر ۱ ثانیه با نرخ تاخیر بسیار کم",
+                modelKey = GeminiClient.MODEL_FLASH_20,
+                isSelected = currentSelectedModel == GeminiClient.MODEL_FLASH_20,
+                onSelect = { currentSelectedModel = GeminiClient.MODEL_FLASH_20 }
             )
 
             Spacer(modifier = Modifier.height(6.dp))
 
             ModelOptionItem(
-                title = "Gemini Flash Latest",
-                subtitle = "جدیدترین انتشار مدل‌های فلش با بالاترین نرخ پاسخگویی",
-                modelKey = GeminiClient.MODEL_FLASH_LATEST,
-                isSelected = currentSelectedModel == GeminiClient.MODEL_FLASH_LATEST,
-                onSelect = { currentSelectedModel = GeminiClient.MODEL_FLASH_LATEST }
+                title = "Gemini 2.5 Pro (تحلیل و منطق عمیق)",
+                subtitle = "بالاترین قدرت تحلیلی و حل مسائل دشوار هوش مصنوعی",
+                modelKey = GeminiClient.MODEL_PRO_25,
+                isSelected = currentSelectedModel == GeminiClient.MODEL_PRO_25,
+                onSelect = { currentSelectedModel = GeminiClient.MODEL_PRO_25 }
             )
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -339,6 +464,7 @@ fun ApiKeyDialog(
                         .clip(RoundedCornerShape(12.dp))
                         .background(AccentActionBlue)
                         .clickable {
+                            GeminiClient.saveSystemInstructions(context, systemInstructionsInput)
                             onSave(keyInput, currentSelectedModel)
                         }
                         .padding(vertical = 12.dp)

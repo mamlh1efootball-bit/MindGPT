@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.ui.theme.AccentActionBlue
+import com.example.ui.theme.BorderGlassLuminous
 import com.example.ui.theme.BorderSubtle
 import com.example.ui.theme.ChatSurfaceElevated
 import com.example.ui.theme.PlusPillBg
@@ -45,19 +46,35 @@ import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimaryWhite
 import com.example.ui.theme.TextSecondaryGray
 
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material.icons.filled.Send
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.shadow
+
 @Composable
 fun GetPlusDialog(
-    onDismiss: () -> Unit,
-    onConfigureApiKey: () -> Unit
+    onDismiss: () -> Unit
 ) {
+    val context = LocalContext.current
+
     Dialog(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(22.dp))
-                .background(ChatSurfaceElevated)
-                .border(1.dp, BorderSubtle, RoundedCornerShape(22.dp))
-                .padding(20.dp)
+                .shadow(24.dp, RoundedCornerShape(24.dp))
+                .clip(RoundedCornerShape(24.dp))
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color(0xFF22252E),
+                            Color(0xFF181A21)
+                        )
+                    )
+                )
+                .border(1.dp, BorderGlassLuminous, RoundedCornerShape(24.dp))
+                .padding(22.dp)
                 .testTag("get_plus_dialog")
         ) {
             // Top Bar with Close
@@ -69,9 +86,10 @@ fun GetPlusDialog(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
-                            .size(36.dp)
+                            .size(38.dp)
                             .clip(CircleShape)
-                            .background(PlusPillBg),
+                            .background(PlusPillBg)
+                            .border(1.dp, Color(0x3360A5FA), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
@@ -82,19 +100,27 @@ fun GetPlusDialog(
                         )
                     }
                     Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = "MindGPT Plus",
-                        color = TextPrimaryWhite,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Column {
+                        Text(
+                            text = "MindGPT Plus",
+                            color = TextPrimaryWhite,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "اشتراک ویژه و نامحدود",
+                            color = PlusPillText,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                 }
 
                 Box(
                     modifier = Modifier
                         .size(32.dp)
                         .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.05f))
+                        .background(Color.White.copy(alpha = 0.08f))
                         .clickable { onDismiss() },
                     contentAlignment = Alignment.Center
                 ) {
@@ -107,79 +133,84 @@ fun GetPlusDialog(
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             FeatureRow(
                 icon = Icons.Default.Bolt,
                 title = "دسترسی به پیشرفته‌ترین مدل‌های هوش مصنوعی",
-                description = "استفاده از هوش مصنوعی Gemini 2.5 Flash با بالاترین دقت"
+                description = "استفاده از هوش مصنوعی Gemini 2.5 Flash با بالاترین دقت و خروجی فارسی روان"
             )
 
             FeatureRow(
                 icon = Icons.Default.Psychology,
                 title = "حالت استدلال عمیق (Think Harder)",
-                description = "پاسخ‌های گام‌به‌گام برای مسائل پیچیده علمی، برنامه‌نویسی و تحلیلی"
+                description = "پاسخ‌های گام‌به‌گام و تحلیلی برای مسائل پیچیده برنامه‌نویسی، علمی و ترجمه"
             )
 
             FeatureRow(
                 icon = Icons.Default.Speed,
-                title = "سرعت پاسخگویی برق‌آسا و اولویت پردازش",
-                description = "بدون صف انتظار و با نرخ پیام نامحدود"
+                title = "سرعت پاسخگویی فوری و اولویت بالا",
+                description = "بدون صف انتظار و با بالاترین پهنای باند پردازش"
             )
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(22.dp))
 
-            // Configure API Key Button
+            // Primary Buy / Upgrade Button redirecting to https://t.me/dev_vexel
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(PlusPillBg)
+                    .shadow(12.dp, RoundedCornerShape(16.dp))
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(
+                        Brush.horizontalGradient(
+                            colors = listOf(
+                                Color(0xFF2563EB),
+                                Color(0xFF1D4ED8)
+                            )
+                        )
+                    )
+                    .border(1.dp, Color(0x66FFFFFF), RoundedCornerShape(16.dp))
                     .clickable {
+                        try {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/dev_vexel"))
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
                         onDismiss()
-                        onConfigureApiKey()
                     }
-                    .padding(vertical = 12.dp)
-                    .testTag("configure_api_key_button"),
+                    .padding(vertical = 14.dp)
+                    .testTag("upgrade_plan_button"),
                 contentAlignment = Alignment.Center
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
                     Icon(
-                        imageVector = Icons.Default.Key,
-                        contentDescription = "Key",
-                        tint = PlusPillText,
+                        imageVector = Icons.Default.Send,
+                        contentDescription = "Telegram",
+                        tint = Color.White,
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "تنظیم کلید اختصاصی API (Settings)",
-                        color = PlusPillText,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold
+                        text = "خرید اشتراک Plus (ارتباط در تلگرام)",
+                        color = Color.White,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Primary Upgrade Button
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(AccentActionBlue)
-                    .clickable { onDismiss() }
-                    .padding(vertical = 13.dp)
-                    .testTag("upgrade_plan_button"),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "ارتقا به پلن نامحدود Plus",
-                    color = Color.White,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
+            Text(
+                text = "پشتیبانی و فعال‌سازی فوری: t.me/dev_vexel",
+                color = TextSecondaryGray,
+                fontSize = 11.sp,
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            )
         }
     }
 }

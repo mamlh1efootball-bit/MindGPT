@@ -41,22 +41,30 @@ data class GeminiGenerationResult(
 object GeminiClient {
     private const val BASE_URL = "https://generativelanguage.googleapis.com/"
     const val MODEL_FLASH_25 = "gemini-2.5-flash"
+    const val MODEL_FLASH_20 = "gemini-2.0-flash"
+    const val MODEL_FLASH_15 = "gemini-1.5-flash"
     const val MODEL_PRO_25 = "gemini-2.5-pro"
-    const val MODEL_FLASH_LATEST = "gemini-flash-latest"
-    const val MODEL_FLASH_35 = "gemini-3.5-flash"
+
+    const val DEFAULT_SYSTEM_INSTRUCTION = """You are MindGPT, a helpful and precise assistant powered by Google AI Studio Gemini models.
+- Always respond natively in fluent, natural Persian (Farsi) when addressed in Persian, with impeccable grammar and modern tone.
+- Use clean Markdown formatting: use bold **text** for emphasis and key concepts, bullet lists, numbered steps, and headers where appropriate.
+- When generating code, use markdown code blocks with the proper language tag.
+- Provide direct, concise, and high-quality answers without unnecessary filler.
+- Be polite, professional, and knowledgeable."""
 
     private const val PREFS_NAME = "mindgpt_gemini_prefs"
     private const val KEY_CUSTOM_API_KEY = "custom_gemini_api_key"
     private const val KEY_SELECTED_MODEL = "selected_gemini_model"
+    private const val KEY_SYSTEM_INSTRUCTIONS = "custom_system_instructions"
 
     private val moshi: Moshi = Moshi.Builder()
         .addLast(KotlinJsonAdapterFactory())
         .build()
 
     private val okHttpClient: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(60, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
-        .writeTimeout(60, TimeUnit.SECONDS)
+        .connectTimeout(25, TimeUnit.SECONDS)
+        .readTimeout(35, TimeUnit.SECONDS)
+        .writeTimeout(25, TimeUnit.SECONDS)
         .addInterceptor(HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BASIC
         })
@@ -105,6 +113,16 @@ object GeminiClient {
         prefs.edit().putString(KEY_SELECTED_MODEL, model).apply()
     }
 
+    fun getSystemInstructions(context: Context): String {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getString(KEY_SYSTEM_INSTRUCTIONS, DEFAULT_SYSTEM_INSTRUCTION) ?: DEFAULT_SYSTEM_INSTRUCTION
+    }
+
+    fun saveSystemInstructions(context: Context, instructions: String) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putString(KEY_SYSTEM_INSTRUCTIONS, instructions.trim()).apply()
+    }
+
     suspend fun executeGenerateContent(
         context: Context,
         prompt: String,
@@ -137,22 +155,21 @@ object GeminiClient {
         }
         parts.add(Part(text = cleanPrompt))
 
+        val baseInstruction = getSystemInstructions(context)
+        val finalInstructionText = if (isThink) {
+            "$baseInstruction\n\n[Think Mode]: Analyze this request deeply and thoroughly, step-by-step."
+        } else {
+            baseInstruction
+        }
+
         val systemInstruction = Content(
             parts = listOf(
-                Part(
-                    text = """
-                        You are MindGPT, powered by Google AI Studio Gemini models.
-                        You are helpful, precise, natural, and friendly.
-                        Always respond in the user's language (natively in Persian/Farsi when addressed in Persian).
-                        Use clear markdown formatting, bold points, and organized paragraphs.
-                        ${if (isThink) "Perform deep reasoning and provide thorough, well-thought-out explanations." else ""}
-                    """.trimIndent()
-                )
+                Part(text = finalInstructionText)
             )
         )
 
         val generationConfig = GenerationConfig(
-            temperature = if (isThink) 0.4f else 0.7f,
+            temperature = if (isThink) 0.3f else 0.7f,
             topP = 0.95f,
             thinkingConfig = if (isThink) ThinkingConfig(thinkingBudget = 2048) else null
         )
@@ -168,9 +185,9 @@ object GeminiClient {
             tools = tools
         )
 
-        // Try selected model, with automatic fallback list
+        // Fast candidate list: user-selected first, then fallback to ultra-fast 2.5 flash, 2.0 flash, 1.5 flash
         val primaryModel = if (isThink) MODEL_PRO_25 else getSelectedModel(context)
-        val candidateModels = listOf(primaryModel, MODEL_FLASH_25, MODEL_FLASH_LATEST, MODEL_FLASH_35).distinct()
+        val candidateModels = listOf(primaryModel, MODEL_FLASH_25, MODEL_FLASH_20, MODEL_FLASH_15).distinct()
 
         var lastErrorMsg = "خطا در ارتباط با سرور گوگل استادیو"
 

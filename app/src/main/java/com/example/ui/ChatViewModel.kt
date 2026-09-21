@@ -336,11 +336,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (show) {
             _uiState.value = _uiState.value.copy(
                 voiceListeningState = VoiceState.LISTENING,
-                voiceTranscript = "در حال شنیدن صدای شما..."
+                voiceTranscript = ""
             )
         } else {
             ttsManager.stop()
         }
+    }
+
+    fun updateVoiceTranscript(text: String) {
+        _uiState.value = _uiState.value.copy(
+            voiceTranscript = text,
+            voiceListeningState = VoiceState.IDLE
+        )
     }
 
     fun sendVoicePrompt(prompt: String) {
@@ -502,26 +509,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        // Smooth simulated typing WITHOUT hammering SQLite:
-        // Update database in 3-4 progressive batches instead of 100 times,
-        // so UI stays 100% fluid and no scroll teleporting occurs.
-        val totalLen = finalReplyText.length
-        if (totalLen > 60) {
-            val steps = 5
-            val stepSize = totalLen / steps
-            for (step in 1..steps) {
-                delay(60)
-                val currentChunk = finalReplyText.substring(0, (step * stepSize).coerceAtMost(totalLen))
-                chatDao.updateMessage(
-                    placeholder.copy(
-                        content = currentChunk,
-                        thinkingContent = finalThinking
-                    )
-                )
-            }
-        }
-
-        // Final complete update
+        // Direct and immediate update for maximum responsiveness and speed
         chatDao.updateMessage(
             placeholder.copy(
                 content = finalReplyText,

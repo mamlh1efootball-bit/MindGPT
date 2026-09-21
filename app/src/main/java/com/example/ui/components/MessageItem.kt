@@ -259,8 +259,8 @@ fun MessageItem(
                     )
                 }
             } else {
-                // Assistant Response Text
-                Text(
+                // Assistant Response Text with Full Markdown (Bold, Code Blocks, Lists)
+                MarkdownText(
                     text = message.content,
                     color = TextPrimaryWhite,
                     fontSize = 15.sp,

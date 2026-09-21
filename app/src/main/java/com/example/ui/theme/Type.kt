@@ -9,7 +9,10 @@ import androidx.compose.ui.unit.sp
 import com.example.R
 
 val VazirFontFamily = FontFamily(
-    Font(R.font.vazirmatn, FontWeight.Normal)
+    Font(R.font.vazirmatn, FontWeight.Normal),
+    Font(R.font.vazirmatn, FontWeight.Medium),
+    Font(R.font.vazirmatn, FontWeight.SemiBold),
+    Font(R.font.vazirmatn, FontWeight.Bold)
 )
 
 val Typography = Typography(
