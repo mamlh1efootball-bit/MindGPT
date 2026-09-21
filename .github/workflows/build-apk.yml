@@ -16,49 +16,45 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Java
+      - name: Set up Java 21
         uses: actions/setup-java@v4
         with:
-          distribution: temurin
-          java-version: '17'
+          distribution: 'temurin'
+          java-version: '21'
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Decode signing keystore
+      - name: Prepare Signing Keystore
         run: |
-          if [ -f debug.keystore.base64 ]; then
-            base64 -d debug.keystore.base64 > debug.keystore 2>/dev/null || true
+          if [ ! -f debug.keystore ]; then
+            if [ -f debug.keystore.base64 ]; then
+              base64 -d debug.keystore.base64 > debug.keystore
+            else
+              keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+            fi
           fi
 
-      - name: Create .env if missing
+      - name: Prepare environment file
         run: |
           if [ ! -f .env ]; then
-            cp .env.example .env 2>/dev/null || touch .env
+            touch .env
             echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY || 'AIzaSyPlaceholderKeyForBuild' }}" >> .env
           fi
 
-      - name: Stage artifacts dir
-        run: mkdir -p artifacts
-
-      - name: Ensure Gradle Wrapper exists
-        run: |
-          gradle wrapper --gradle-version 8.11.1 || true
-          chmod +x gradlew || true
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
 
       - name: Build Android APK
-        run: |
-          if [ -x ./gradlew ]; then
-            ./gradlew --no-daemon --build-cache assembleDebug
-          else
-            gradle --no-daemon --build-cache assembleDebug
-          fi
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
 
-      - name: Collect APK
+      - name: Stage Artifacts
         run: |
+          mkdir -p artifacts
           find app/build/outputs/apk -name "*.apk" -exec cp {} artifacts/ \;
+          ls -la artifacts/
 
-      - name: Upload Android APK artifacts
+      - name: Upload Android APK
         uses: actions/upload-artifact@v4
         with:
           name: MindGPT-Android-APK
