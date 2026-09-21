@@ -19,17 +19,27 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Create .env if missing
+        run: |
+          if [ ! -f .env ]; then
+            cp .env.example .env 2>/dev/null || touch .env
+            echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY || 'MY_GEMINI_API_KEY' }}" >> .env
+          fi
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew || true
+      - name: Generate Gradle Wrapper if missing
+        run: |
+          gradle wrapper --gradle-version 8.7 || true
+          chmod +x gradlew || true
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: MindGPT-Debug-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: MindGPT-APK
+          path: app/build/outputs/apk/debug/*.apk
+          retention-days: 14
