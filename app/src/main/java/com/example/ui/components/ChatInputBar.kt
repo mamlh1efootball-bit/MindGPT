@@ -27,7 +27,9 @@ import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.TravelExplore
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -40,6 +42,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -58,6 +61,7 @@ fun ChatInputBar(
     attachedImageUri: Uri?,
     isGenerating: Boolean,
     isThinkHarderEnabled: Boolean,
+    isDeepResearchEnabled: Boolean,
     showPlusMenu: Boolean,
     placeholderText: String,
     onInputChange: (String) -> Unit,
@@ -68,9 +72,11 @@ fun ChatInputBar(
     onRemoveImage: () -> Unit,
     onCameraClick: () -> Unit,
     onPhotosClick: () -> Unit,
-    onFilesClick: () -> Unit,
-    onPluginsClick: () -> Unit,
-    onToggleThinkHarder: () -> Unit,
+    onCreateImageClick: () -> Unit,
+    onDesignClick: () -> Unit,
+    onToggleThink: () -> Unit,
+    onToggleDeepResearch: () -> Unit,
+    onStudyClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -80,7 +86,7 @@ fun ChatInputBar(
             .navigationBarsPadding()
             .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
-        // Plus Popup Menu (Screenshot 12)
+        // Plus / Plugins Menu Popup (Screenshot 12)
         if (showPlusMenu) {
             Box(
                 modifier = Modifier.fillMaxWidth(),
@@ -88,13 +94,95 @@ fun ChatInputBar(
             ) {
                 PlusMenuPopup(
                     isThinkHarderEnabled = isThinkHarderEnabled,
+                    isDeepResearchEnabled = isDeepResearchEnabled,
                     onCameraClick = onCameraClick,
                     onPhotosClick = onPhotosClick,
-                    onFilesClick = onFilesClick,
-                    onPluginsClick = onPluginsClick,
-                    onToggleThinkHarder = onToggleThinkHarder,
+                    onCreateImageClick = onCreateImageClick,
+                    onDesignClick = onDesignClick,
+                    onToggleThink = onToggleThink,
+                    onToggleDeepResearch = onToggleDeepResearch,
+                    onStudyClick = onStudyClick,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
+            }
+        }
+
+        // Active Plugin Indicator Chip (Screenshot 5: "فکر کن" blue badge with X)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 6.dp),
+            horizontalArrangement = Arrangement.Start
+        ) {
+            if (isThinkHarderEnabled) {
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color(0xFF1E3A8A).copy(alpha = 0.85f))
+                        .border(1.dp, Color(0xFF3B82F6), RoundedCornerShape(16.dp))
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                        .testTag("active_think_badge"),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Psychology,
+                        contentDescription = "Think",
+                        tint = Color(0xFF93C5FD),
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "فکر کن",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Disable think mode",
+                        tint = Color(0xFF93C5FD),
+                        modifier = Modifier
+                            .size(14.dp)
+                            .clickable { onToggleThink() }
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+            }
+
+            if (isDeepResearchEnabled) {
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color(0xFF064E3B).copy(alpha = 0.85f))
+                        .border(1.dp, Color(0xFF10B981), RoundedCornerShape(16.dp))
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                        .testTag("active_deep_research_badge"),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.TravelExplore,
+                        contentDescription = "Deep research",
+                        tint = Color(0xFFA7F3D0),
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "پژوهش عمیق",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Disable deep research",
+                        tint = Color(0xFFA7F3D0),
+                        modifier = Modifier
+                            .size(14.dp)
+                            .clickable { onToggleDeepResearch() }
+                    )
+                }
             }
         }
 
@@ -154,7 +242,6 @@ fun ChatInputBar(
                         .size(38.dp)
                         .clip(CircleShape)
                         .background(AccentActionBlue)
-                        .clickable { /* Handled in VM */ }
                         .testTag("input_stop_button"),
                     contentAlignment = Alignment.Center
                 ) {
@@ -184,7 +271,7 @@ fun ChatInputBar(
                     )
                 }
             } else {
-                // Phone Call Voice Mode Button (Screenshot 1, 4, 11)
+                // Phone Call Voice Mode Button
                 Box(
                     modifier = Modifier
                         .size(38.dp)
@@ -203,7 +290,7 @@ fun ChatInputBar(
                 }
             }
 
-            // Mic Icon Button for dictation (Screenshots 1, 2, 11)
+            // Mic Icon Button for dictation
             IconButton(
                 onClick = onMicClick,
                 modifier = Modifier

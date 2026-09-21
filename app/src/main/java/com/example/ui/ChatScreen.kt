@@ -1,8 +1,14 @@
 package com.example.ui
 
+import android.Manifest
 import android.app.Activity
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.speech.RecognizerIntent
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -20,12 +26,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
@@ -53,19 +57,22 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.ui.components.ApiKeyDialog
+import androidx.core.content.ContextCompat
+import com.example.ui.components.ChatItemActionDialog
 import com.example.ui.components.ChatInputBar
 import com.example.ui.components.ChatOptionsMenu
 import com.example.ui.components.ChatSideDrawer
 import com.example.ui.components.ChatTopBar
+import com.example.ui.components.EditMessageDialog
 import com.example.ui.components.EmptyStateView
 import com.example.ui.components.GetPlusDialog
 import com.example.ui.components.ImagesGalleryDialog
 import com.example.ui.components.MessageItem
 import com.example.ui.components.MessageOptionsPopup
+import com.example.ui.components.RenameChatDialog
+import com.example.ui.components.SelectTextDialog
+import com.example.ui.components.TopFloatingBanner
 import com.example.ui.components.VoiceModeOverlay
-import com.example.ui.theme.AccentActionBlue
-import com.example.ui.theme.BorderSubtle
 import com.example.ui.theme.ChatOledBlack
 import com.example.ui.theme.ChatSurfaceElevated
 import com.example.ui.theme.TextMuted
@@ -89,7 +96,7 @@ fun ChatScreen(
 
     var showImagesStudio by remember { mutableStateOf(false) }
 
-    // Android Photo Picker (zero-permission standard)
+    // Android Photo Picker
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
@@ -98,12 +105,31 @@ fun ChatScreen(
         }
     }
 
+    // Permission launcher for Gallery/Media
+    val galleryPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            photoPickerLauncher.launch(
+                androidx.activity.result.PickVisualMediaRequest(
+                    ActivityResultContracts.PickVisualMedia.ImageOnly
+                )
+            )
+        } else {
+            // Standard photo picker can still work without storage permission on Android 13+
+            photoPickerLauncher.launch(
+                androidx.activity.result.PickVisualMediaRequest(
+                    ActivityResultContracts.PickVisualMedia.ImageOnly
+                )
+            )
+        }
+    }
+
     // Camera Capture Launcher
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicturePreview()
     ) { bitmap ->
         if (bitmap != null) {
-            // Save temporary bitmap to cache and attach
             try {
                 val tempFile = java.io.File(context.cacheDir, "camera_snap_${System.currentTimeMillis()}.jpg")
                 val out = java.io.FileOutputStream(tempFile)
@@ -117,6 +143,21 @@ fun ChatScreen(
         }
     }
 
+    // Camera permission launcher
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            try {
+                cameraLauncher.launch(null)
+            } catch (e: Exception) {
+                viewModel.showTopBanner("خطا در باز کردن دوربین")
+            }
+        } else {
+            viewModel.showTopBanner("برای گرفتن عکس، اجازه دسترسی به دوربین لازم است")
+        }
+    }
+
     // Speech to text dictation launcher
     val speechLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -126,11 +167,35 @@ fun ChatScreen(
                 result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
             if (!spokenText.isNullOrBlank()) {
                 viewModel.onInputTextChange(spokenText)
+                viewModel.showTopBanner("صدا دریافت شد")
             }
         }
     }
 
-    // Auto-scroll when messages change or new generation finishes
+    // Microphone permission launcher
+    var pendingMicAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    val micPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            pendingMicAction?.invoke()
+        } else {
+            viewModel.showTopBanner("برای تشخیص صدا، اجازه دسترسی به میکروفون الزامی است")
+        }
+        pendingMicAction = null
+    }
+
+    fun executeWithMicPermission(action: () -> Unit) {
+        val permissionCheck = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
+        if (permissionCheck == PackageManager.PERMISSION_GRANTED) {
+            action()
+        } else {
+            pendingMicAction = action
+            micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    // Auto-scroll when messages change
     LaunchedEffect(uiState.messages.size, uiState.isGenerating) {
         if (uiState.messages.isNotEmpty()) {
             listState.animateScrollToItem(uiState.messages.size - 1)
@@ -148,6 +213,9 @@ fun ChatScreen(
                     viewModel.selectChat(chat)
                     coroutineScope.launch { drawerState.close() }
                 },
+                onChatLongClick = { chat ->
+                    viewModel.openChatActionMenu(chat)
+                },
                 onNewChatClick = {
                     viewModel.startNewChat()
                     coroutineScope.launch { drawerState.close() }
@@ -161,7 +229,7 @@ fun ChatScreen(
                     coroutineScope.launch { drawerState.close() }
                 },
                 onSettingsClick = {
-                    viewModel.toggleApiKeyDialog(true)
+                    viewModel.showTopBanner("نسخه MindGPT - اتصال مستقیم هوش مصنوعی فعال است")
                     coroutineScope.launch { drawerState.close() }
                 }
             )
@@ -233,53 +301,67 @@ fun ChatScreen(
                     attachedImageUri = uiState.attachedImageUri,
                     isGenerating = uiState.isGenerating,
                     isThinkHarderEnabled = uiState.isThinkHarderEnabled,
+                    isDeepResearchEnabled = uiState.isDeepResearchEnabled,
                     showPlusMenu = uiState.showPlusMenu,
                     placeholderText = if (uiState.messages.isEmpty()) "Ask MindGPT" else "Reply to MindGPT",
                     onInputChange = { viewModel.onInputTextChange(it) },
                     onSend = { viewModel.sendMessage() },
-                    onVoiceClick = { viewModel.toggleVoiceMode(true) },
+                    onVoiceClick = {
+                        executeWithMicPermission {
+                            viewModel.toggleVoiceMode(true)
+                        }
+                    },
                     onMicClick = {
-                        try {
-                            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                                putExtra(
-                                    RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-                                )
-                                putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-                                putExtra(RecognizerIntent.EXTRA_PROMPT, "صحبت کنید...")
+                        executeWithMicPermission {
+                            try {
+                                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+                                    putExtra(RecognizerIntent.EXTRA_PROMPT, "صحبت کنید...")
+                                }
+                                speechLauncher.launch(intent)
+                            } catch (_: Exception) {
+                                viewModel.showTopBanner("سرویس تشخیص صدای گوگل در دسترس نیست")
                             }
-                            speechLauncher.launch(intent)
-                        } catch (_: Exception) {
-                            Toast.makeText(context, "سرویس تشخیص صدا در دسترس نیست", Toast.LENGTH_SHORT).show()
                         }
                     },
                     onPlusClick = { viewModel.togglePlusMenu() },
                     onRemoveImage = { viewModel.attachImage(null) },
                     onCameraClick = {
                         viewModel.dismissPlusMenu()
-                        try {
-                            cameraLauncher.launch(null)
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "خطا در باز کردن دوربین", Toast.LENGTH_SHORT).show()
+                        val camPerm = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
+                        if (camPerm == PackageManager.PERMISSION_GRANTED) {
+                            try {
+                                cameraLauncher.launch(null)
+                            } catch (e: Exception) {
+                                viewModel.showTopBanner("خطا در باز کردن دوربین")
+                            }
+                        } else {
+                            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
                         }
                     },
                     onPhotosClick = {
                         viewModel.dismissPlusMenu()
-                        photoPickerLauncher.launch(
-                            androidx.activity.result.PickVisualMediaRequest(
-                                ActivityResultContracts.PickVisualMedia.ImageOnly
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            photoPickerLauncher.launch(
+                                androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                             )
-                        )
+                        } else {
+                            val storagePerm = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE)
+                            if (storagePerm == PackageManager.PERMISSION_GRANTED) {
+                                photoPickerLauncher.launch(
+                                    androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                )
+                            } else {
+                                galleryPermissionLauncher.launch(Manifest.permission.READ_EXTERNAL_STORAGE)
+                            }
+                        }
                     },
-                    onFilesClick = {
-                        viewModel.dismissPlusMenu()
-                        Toast.makeText(context, "فایل‌ها: انتخاب سند متنی", Toast.LENGTH_SHORT).show()
-                    },
-                    onPluginsClick = {
-                        viewModel.dismissPlusMenu()
-                        Toast.makeText(context, "پلاگین‌ها فعال هستند", Toast.LENGTH_SHORT).show()
-                    },
-                    onToggleThinkHarder = { viewModel.toggleThinkHarder() },
+                    onCreateImageClick = { viewModel.activateCreateImageMode() },
+                    onDesignClick = { viewModel.activateDesignMode() },
+                    onToggleThink = { viewModel.toggleThink() },
+                    onToggleDeepResearch = { viewModel.toggleDeepResearch() },
+                    onStudyClick = { viewModel.activateStudyMode() },
                     modifier = Modifier.imePadding()
                 )
             },
@@ -306,7 +388,6 @@ fun ChatScreen(
                 }
 
                 if (filteredMessages.isEmpty() && !uiState.isGenerating) {
-                    // Empty State with suggestions matching Screenshot 11
                     EmptyStateView(
                         onSuggestionClick = { prompt ->
                             viewModel.onInputTextChange(prompt)
@@ -314,7 +395,6 @@ fun ChatScreen(
                         modifier = Modifier.align(Alignment.BottomCenter)
                     )
                 } else {
-                    // Message Stream
                     LazyColumn(
                         state = listState,
                         modifier = Modifier
@@ -324,10 +404,14 @@ fun ChatScreen(
                         items(filteredMessages, key = { it.id }) { message ->
                             MessageItem(
                                 message = message,
+                                isGeneratingThisMessage = uiState.isGenerating && message == filteredMessages.lastOrNull(),
                                 onMenuClick = { viewModel.openMessageMenu(message) },
                                 onPlayTts = { viewModel.playTts(message) },
                                 onToggleLike = { viewModel.toggleLike(message) },
-                                onToggleDislike = { viewModel.toggleDislike(message) }
+                                onToggleDislike = { viewModel.toggleDislike(message) },
+                                onCopySuccess = {
+                                    viewModel.showTopBanner("متن با موفقیت کپی شد")
+                                }
                             )
                         }
                         item {
@@ -335,11 +419,107 @@ fun ChatScreen(
                         }
                     }
                 }
+
+                // Top Floating Banner Notification (Screenshot 7 style: elegant floating pill)
+                TopFloatingBanner(
+                    banner = uiState.topBanner,
+                    onDismiss = { viewModel.dismissTopBanner() },
+                    modifier = Modifier.align(Alignment.TopCenter)
+                )
             }
         }
     }
 
-    // Dialogs & Modals
+    // Long-Press Message Popup (Screenshots 1, 6)
+    if (uiState.selectedMessageForMenu != null) {
+        val message = uiState.selectedMessageForMenu!!
+        MessageOptionsPopup(
+            message = message,
+            onDismiss = { viewModel.dismissMessageMenu() },
+            onCopy = {
+                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                val clip = ClipData.newPlainText("MindGPT", message.content)
+                clipboard.setPrimaryClip(clip)
+                viewModel.showTopBanner("متن در کلیپ‌بورد کپی شد")
+            },
+            onSelectText = {
+                viewModel.openSelectText(message)
+            },
+            onEditMessage = {
+                viewModel.openEditMessage(message)
+            },
+            onShare = {
+                val intent = Intent().apply {
+                    action = Intent.ACTION_SEND
+                    putExtra(Intent.EXTRA_TEXT, message.content)
+                    type = "text/plain"
+                }
+                context.startActivity(Intent.createChooser(intent, "اشتراک‌گذاری"))
+            },
+            onBranch = { viewModel.branchChat(message) },
+            onRetry = { viewModel.retryAssistantMessage(message) },
+            onSearchWeb = { viewModel.searchWebForMessage(message) },
+            onReadAloud = { viewModel.playTts(message) }
+        )
+    }
+
+    // Edit Message Screen (Screenshot 2)
+    if (uiState.editingMessage != null) {
+        val msg = uiState.editingMessage!!
+        EditMessageDialog(
+            initialText = msg.content,
+            onDismiss = { viewModel.dismissEditMessage() },
+            onSaveAndSend = { newText ->
+                viewModel.editAndResendMessage(msg, newText)
+            }
+        )
+    }
+
+    // Select Text Screen (Screenshot 3)
+    if (uiState.selectingTextMessage != null) {
+        val msg = uiState.selectingTextMessage!!
+        SelectTextDialog(
+            text = msg.content,
+            onDismiss = { viewModel.dismissSelectText() },
+            onCopied = { bannerText ->
+                viewModel.showTopBanner(bannerText)
+            }
+        )
+    }
+
+    // Chat Drawer Long-Press Actions (Pin, Rename, Delete, Share)
+    if (uiState.actionChatForMenu != null) {
+        val chat = uiState.actionChatForMenu!!
+        ChatItemActionDialog(
+            chat = chat,
+            onDismiss = { viewModel.dismissChatActionMenu() },
+            onPinToggle = { viewModel.togglePinChat(chat) },
+            onRenameClick = { viewModel.openRenameChatDialog(chat) },
+            onDeleteClick = { viewModel.deleteChat(chat) },
+            onShareClick = {
+                val intent = Intent().apply {
+                    action = Intent.ACTION_SEND
+                    putExtra(Intent.EXTRA_TEXT, "گفتگوی MindGPT: ${chat.title}")
+                    type = "text/plain"
+                }
+                context.startActivity(Intent.createChooser(intent, "اشتراک چت"))
+            }
+        )
+    }
+
+    // Rename Chat Dialog
+    if (uiState.renamingChat != null) {
+        val chat = uiState.renamingChat!!
+        RenameChatDialog(
+            initialTitle = chat.title,
+            onDismiss = { viewModel.dismissRenameChatDialog() },
+            onConfirm = { newTitle ->
+                viewModel.renameChat(chat, newTitle)
+            }
+        )
+    }
+
+    // Chat Options Menu (From 3 dots in Top Bar)
     if (uiState.showChatOptionsMenu && uiState.currentChat != null) {
         val chat = uiState.currentChat!!
         ChatOptionsMenu(
@@ -358,46 +538,30 @@ fun ChatScreen(
             onPin = { viewModel.togglePinChat(chat) },
             onAddToProject = {
                 viewModel.dismissChatOptionsMenu()
-                Toast.makeText(context, "به پروژه افزوده شد", Toast.LENGTH_SHORT).show()
+                viewModel.showTopBanner("به پروژه اضافه شد")
             },
             onUploadedFiles = {
                 viewModel.dismissChatOptionsMenu()
                 val imageCount = uiState.messages.count { !it.imageUri.isNullOrEmpty() }
-                Toast.makeText(context, "تعداد فایل‌های تصویر: $imageCount", Toast.LENGTH_SHORT).show()
+                viewModel.showTopBanner("تعداد فایل‌های تصویر: $imageCount")
             },
             onFindInChat = { viewModel.toggleChatSearch(true) },
             onAddToHome = {
                 viewModel.dismissChatOptionsMenu()
-                Toast.makeText(context, "میانبر به صفحه اصلی اضافه شد", Toast.LENGTH_SHORT).show()
+                viewModel.showTopBanner("میانبر ایجاد شد")
             },
             onArchive = { viewModel.toggleArchiveChat(chat) },
             onDelete = { viewModel.deleteChat(chat) }
         )
     }
 
-    if (uiState.selectedMessageForMenu != null) {
-        val message = uiState.selectedMessageForMenu!!
-        MessageOptionsPopup(
-            message = message,
-            onDismiss = { viewModel.dismissMessageMenu() },
-            onBranch = { viewModel.branchChat(message) },
-            onRetry = { viewModel.retryAssistantMessage(message) },
-            onSearchWeb = { viewModel.searchWebForMessage(message) }
-        )
-    }
-
     if (uiState.showGetPlusDialog) {
         GetPlusDialog(
             onDismiss = { viewModel.toggleGetPlusDialog(false) },
-            onConfigureApiKey = { viewModel.toggleApiKeyDialog(true) }
-        )
-    }
-
-    if (uiState.showApiKeyDialog) {
-        ApiKeyDialog(
-            currentKey = uiState.customApiKey,
-            onDismiss = { viewModel.toggleApiKeyDialog(false) },
-            onSave = { key -> viewModel.setCustomApiKey(key) }
+            onConfigureApiKey = {
+                viewModel.toggleGetPlusDialog(false)
+                viewModel.showTopBanner("اتصال MindGPT به هوش مصنوعی گوگل به صورت مستقیم فعال است")
+            }
         )
     }
 

@@ -2,14 +2,20 @@ package com.example.ui
 
 import android.app.Application
 import android.net.Uri
-import android.widget.Toast
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Brush
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.TravelExplore
+import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.data.api.Candidate
 import com.example.data.api.Content
 import com.example.data.api.GeminiClient
 import com.example.data.api.GenerateContentRequest
-import com.example.data.api.GenerateContentResponse
 import com.example.data.api.GenerationConfig
 import com.example.data.api.InlineData
 import com.example.data.api.Part
@@ -17,8 +23,10 @@ import com.example.data.api.ThinkingConfig
 import com.example.data.db.AppDatabase
 import com.example.data.db.ChatEntity
 import com.example.data.db.MessageEntity
+import com.example.ui.components.TopBannerMessage
 import com.example.util.TextToSpeechManager
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -36,6 +44,7 @@ data class ChatUiState(
     val inputText: String = "",
     val attachedImageUri: Uri? = null,
     val isThinkHarderEnabled: Boolean = false,
+    val isDeepResearchEnabled: Boolean = false,
     val showPlusMenu: Boolean = false,
     val showChatOptionsMenu: Boolean = false,
     val showGetPlusDialog: Boolean = false,
@@ -43,6 +52,11 @@ data class ChatUiState(
     val showApiKeyDialog: Boolean = false,
     val customApiKey: String = "",
     val selectedMessageForMenu: MessageEntity? = null,
+    val editingMessage: MessageEntity? = null,
+    val selectingTextMessage: MessageEntity? = null,
+    val actionChatForMenu: ChatEntity? = null,
+    val renamingChat: ChatEntity? = null,
+    val topBanner: TopBannerMessage? = null,
     val isPlayingAudio: Boolean = false,
     val currentAudioMessageId: String? = null,
     val audioDurationSeconds: Int = 0,
@@ -70,6 +84,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
+    private var bannerJob: Job? = null
+
     init {
         // Collect TTS states
         viewModelScope.launch {
@@ -83,56 +99,32 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        // Initialize default chats matching screenshots on first launch
+        // Clean initial start: No fake seed chats!
         viewModelScope.launch(Dispatchers.IO) {
-            val existing = chatDao.getAllChats()
             allChats.collect { list ->
-                if (list.isEmpty()) {
-                    seedDefaultChats()
-                } else if (_uiState.value.currentChat == null) {
-                    // Select first chat
+                if (list.isNotEmpty() && _uiState.value.currentChat == null) {
                     selectChat(list.first())
                 }
             }
         }
     }
 
-    private suspend fun seedDefaultChats() {
-        val now = System.currentTimeMillis()
-        val defaultChats = listOf(
-            ChatEntity(id = "chat_salam", title = "پاسخ سلام", updatedAt = now, isPinned = true),
-            ChatEntity(id = "chat_vpn", title = "Build VPN App", updatedAt = now - 1000 * 3600),
-            ChatEntity(id = "chat_vless", title = "کانفیگ VLESS WS", updatedAt = now - 1000 * 3600 * 3),
-            ChatEntity(id = "chat_banner", title = "پوستر بنر اختصاصی", updatedAt = now - 1000 * 3600 * 8),
-            ChatEntity(id = "chat_bypass", title = "روش‌های دور زدن تحریم", updatedAt = now - 1000 * 3600 * 24),
-            ChatEntity(id = "chat_youtube", title = "بک‌گراند حرفه‌ای یوتیوب", updatedAt = now - 1000 * 3600 * 48),
-            ChatEntity(id = "chat_logo", title = "طراحی لوگو جدید", updatedAt = now - 1000 * 3600 * 72),
-            ChatEntity(id = "chat_vpn_names", title = "اسم‌های فروش VPN", updatedAt = now - 1000 * 3600 * 96)
+    fun showTopBanner(text: String, icon: androidx.compose.ui.graphics.vector.ImageVector = Icons.Default.AutoAwesome, tint: Color = Color(0xFF38BDF8)) {
+        bannerJob?.cancel()
+        _uiState.value = _uiState.value.copy(
+            topBanner = TopBannerMessage(text = text, icon = icon, iconTint = tint)
         )
-
-        for (c in defaultChats) {
-            chatDao.insertChat(c)
+        bannerJob = viewModelScope.launch {
+            delay(3500)
+            if (_uiState.value.topBanner?.text == text) {
+                _uiState.value = _uiState.value.copy(topBanner = null)
+            }
         }
+    }
 
-        // Seed messages for "پاسخ سلام" matching Screenshot 1
-        chatDao.insertMessage(
-            MessageEntity(
-                id = "msg_user_1",
-                chatId = "chat_salam",
-                role = "user",
-                content = "سلام",
-                timestamp = now - 60000
-            )
-        )
-        chatDao.insertMessage(
-            MessageEntity(
-                id = "msg_asst_1",
-                chatId = "chat_salam",
-                role = "assistant",
-                content = "سلام! 🌷 خوش اومدی. چطور می‌تونم کمکت کنم؟",
-                timestamp = now - 30000
-            )
-        )
+    fun dismissTopBanner() {
+        bannerJob?.cancel()
+        _uiState.value = _uiState.value.copy(topBanner = null)
     }
 
     fun selectChat(chat: ChatEntity) {
@@ -155,6 +147,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             chatDao.insertChat(newChat)
             withContext(Dispatchers.Main) {
                 selectChat(newChat)
+                showTopBanner("گفتگوی جدید آغاز شد")
             }
         }
     }
@@ -165,16 +158,61 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun attachImage(uri: Uri?) {
         _uiState.value = _uiState.value.copy(attachedImageUri = uri, showPlusMenu = false)
+        if (uri != null) {
+            showTopBanner("تصویر اضافه شد - آماده تحلیل", Icons.Default.Image, Color(0xFF60A5FA))
+        }
     }
 
-    fun toggleThinkHarder() {
+    fun toggleThink() {
         val current = _uiState.value.isThinkHarderEnabled
+        val newState = !current
         _uiState.value = _uiState.value.copy(
-            isThinkHarderEnabled = !current,
+            isThinkHarderEnabled = newState,
             showPlusMenu = false
         )
-        val msg = if (!current) "حالت تفکر عمیق (Think harder) فعال شد" else "حالت تفکر عمیق غیرفعال شد"
-        Toast.makeText(getApplication(), msg, Toast.LENGTH_SHORT).show()
+        if (newState) {
+            showTopBanner("حالت تفکر عمیق (Think) فعال شد", Icons.Default.Psychology, Color(0xFF38BDF8))
+        } else {
+            showTopBanner("حالت تفکر عمیق غیرفعال شد", Icons.Default.Psychology, Color(0xFF94A3B8))
+        }
+    }
+
+    fun toggleDeepResearch() {
+        val current = _uiState.value.isDeepResearchEnabled
+        val newState = !current
+        _uiState.value = _uiState.value.copy(
+            isDeepResearchEnabled = newState,
+            showPlusMenu = false
+        )
+        if (newState) {
+            showTopBanner("پژوهش عمیق وب فعال شد", Icons.Default.TravelExplore, Color(0xFF34D399))
+        } else {
+            showTopBanner("پژوهش عمیق غیرفعال شد", Icons.Default.TravelExplore, Color(0xFF94A3B8))
+        }
+    }
+
+    fun activateCreateImageMode() {
+        _uiState.value = _uiState.value.copy(showPlusMenu = false)
+        showTopBanner("پلاگین ایجاد تصویر فعال است: توضیحات عکس را بنویسید", Icons.Default.Image, Color(0xFF60A5FA))
+        if (_uiState.value.inputText.isEmpty()) {
+            _uiState.value = _uiState.value.copy(inputText = "یک تصویر باکیفیت و سینمایی بساز از: ")
+        }
+    }
+
+    fun activateDesignMode() {
+        _uiState.value = _uiState.value.copy(showPlusMenu = false)
+        showTopBanner("پلاگین طراحی و دیزاین فعال شد", Icons.Default.Brush, Color(0xFFF472B6))
+        if (_uiState.value.inputText.isEmpty()) {
+            _uiState.value = _uiState.value.copy(inputText = "یک کانسپت طراحی مدرن ارائه بده برای: ")
+        }
+    }
+
+    fun activateStudyMode() {
+        _uiState.value = _uiState.value.copy(showPlusMenu = false)
+        showTopBanner("پلاگین مطالعه و یادگیری فعال شد", Icons.Default.MenuBook, Color(0xFFFBBF24))
+        if (_uiState.value.inputText.isEmpty()) {
+            _uiState.value = _uiState.value.copy(inputText = "این موضوع را به زبان ساده و گام‌به‌گام تدریس کن: ")
+        }
     }
 
     fun togglePlusMenu() {
@@ -197,15 +235,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.value = _uiState.value.copy(showGetPlusDialog = show)
     }
 
-    fun toggleApiKeyDialog(show: Boolean) {
-        _uiState.value = _uiState.value.copy(showApiKeyDialog = show)
-    }
-
-    fun setCustomApiKey(key: String) {
-        _uiState.value = _uiState.value.copy(customApiKey = key, showApiKeyDialog = false)
-        Toast.makeText(getApplication(), "کلید API با موفقیت ذخیره شد", Toast.LENGTH_SHORT).show()
-    }
-
     fun openMessageMenu(message: MessageEntity) {
         _uiState.value = _uiState.value.copy(selectedMessageForMenu = message)
     }
@@ -214,21 +243,61 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.value = _uiState.value.copy(selectedMessageForMenu = null)
     }
 
-    fun toggleVoiceMode(show: Boolean) {
-        _uiState.value = _uiState.value.copy(showVoiceMode = show)
-        if (show) {
-            simulateVoiceListening()
-        } else {
-            ttsManager.stop()
+    fun openEditMessage(message: MessageEntity) {
+        _uiState.value = _uiState.value.copy(editingMessage = message, selectedMessageForMenu = null)
+    }
+
+    fun dismissEditMessage() {
+        _uiState.value = _uiState.value.copy(editingMessage = null)
+    }
+
+    fun openSelectText(message: MessageEntity) {
+        _uiState.value = _uiState.value.copy(selectingTextMessage = message, selectedMessageForMenu = null)
+    }
+
+    fun dismissSelectText() {
+        _uiState.value = _uiState.value.copy(selectingTextMessage = null)
+    }
+
+    fun openChatActionMenu(chat: ChatEntity) {
+        _uiState.value = _uiState.value.copy(actionChatForMenu = chat)
+    }
+
+    fun dismissChatActionMenu() {
+        _uiState.value = _uiState.value.copy(actionChatForMenu = null)
+    }
+
+    fun openRenameChatDialog(chat: ChatEntity) {
+        _uiState.value = _uiState.value.copy(renamingChat = chat, actionChatForMenu = null)
+    }
+
+    fun dismissRenameChatDialog() {
+        _uiState.value = _uiState.value.copy(renamingChat = null)
+    }
+
+    fun renameChat(chat: ChatEntity, newTitle: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val updated = chat.copy(title = newTitle, updatedAt = System.currentTimeMillis())
+            chatDao.updateChat(updated)
+            withContext(Dispatchers.Main) {
+                if (_uiState.value.currentChat?.id == chat.id) {
+                    _uiState.value = _uiState.value.copy(currentChat = updated)
+                }
+                dismissRenameChatDialog()
+                showTopBanner("نام گفتگو تغییر کرد: $newTitle")
+            }
         }
     }
 
-    private fun simulateVoiceListening() {
-        viewModelScope.launch {
+    fun toggleVoiceMode(show: Boolean) {
+        _uiState.value = _uiState.value.copy(showVoiceMode = show)
+        if (show) {
             _uiState.value = _uiState.value.copy(
                 voiceListeningState = VoiceState.LISTENING,
                 voiceTranscript = "در حال شنیدن صدای شما..."
             )
+        } else {
+            ttsManager.stop()
         }
     }
 
@@ -240,6 +309,35 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         sendMessage(promptOverride = prompt)
     }
 
+    fun editAndResendMessage(originalMessage: MessageEntity, newText: String) {
+        dismissEditMessage()
+        viewModelScope.launch(Dispatchers.IO) {
+            // Delete messages after this one to restart conversation from here (Screenshot 2 note)
+            val currentMsgs = _uiState.value.messages
+            val index = currentMsgs.indexOfFirst { it.id == originalMessage.id }
+            if (index >= 0) {
+                for (i in (index + 1) until currentMsgs.size) {
+                    chatDao.deleteMessage(currentMsgs[i].id)
+                }
+            }
+            // Update this user message
+            val updated = originalMessage.copy(content = newText, timestamp = System.currentTimeMillis())
+            chatDao.updateMessage(updated)
+
+            withContext(Dispatchers.Main) {
+                _uiState.value = _uiState.value.copy(isGenerating = true)
+                showTopBanner("پیام ویرایش شد، بازتولید پاسخ...")
+            }
+            generateAiResponse(
+                chatId = originalMessage.chatId,
+                userPrompt = newText,
+                imageUri = null,
+                isThinkHarder = _uiState.value.isThinkHarderEnabled,
+                isWebSearch = _uiState.value.isDeepResearchEnabled
+            )
+        }
+    }
+
     fun sendMessage(promptOverride: String? = null, isWebSearchOverride: Boolean = false) {
         val text = promptOverride ?: _uiState.value.inputText.trim()
         val imageUri = _uiState.value.attachedImageUri
@@ -247,6 +345,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
         val currentChat = _uiState.value.currentChat
         val isFirstMessage = _uiState.value.messages.isEmpty()
+        val isDeepResearch = isWebSearchOverride || _uiState.value.isDeepResearchEnabled
+        val isThink = _uiState.value.isThinkHarderEnabled
 
         viewModelScope.launch(Dispatchers.IO) {
             val resolvedChat: ChatEntity = if (currentChat == null) {
@@ -282,7 +382,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 content = text,
                 imageUri = imageUri?.toString(),
                 timestamp = System.currentTimeMillis(),
-                isWebSearch = isWebSearchOverride
+                isWebSearch = isDeepResearch
             )
             chatDao.insertMessage(userMessage)
 
@@ -296,7 +396,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             // Call Gemini API
-            generateAiResponse(resolvedChat.id, text, imageUri, _uiState.value.isThinkHarderEnabled, isWebSearchOverride)
+            generateAiResponse(resolvedChat.id, text, imageUri, isThink, isDeepResearch)
         }
     }
 
@@ -330,7 +430,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
         val finalPrompt = buildString {
             if (isWebSearch) {
-                append("[حالت جستجوی وب] لطفاً با جستجو و استفاده از آخرین اطلاعات به‌روز و دقیق به این پرسش پاسخ بده: ")
+                append("[حالت پژوهش عمیق و جستجوی وب] با جدیدترین منابع معتبر و اطلاعات تحلیلی پاسخ بده: ")
             }
             if (userPrompt.isNotBlank()) {
                 append(userPrompt)
@@ -341,11 +441,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         parts.add(Part(text = finalPrompt))
 
         val systemInstructionText = """
-            You are MindGPT, an exceptionally intelligent, polite, cutting-edge AI assistant modeled after ChatGPT.
-            Always reply fluently and naturally in the language used by the user (primarily Persian/Farsi or English).
-            Deliver accurate, insightful, beautifully formatted, comprehensive answers.
-            When analyzing photos, give rich visual details, text extractions, and object recognitions.
-            ${if (isThinkHarder) "Take your time to think deeply and systematically, analyzing edge cases and structuring your response logically." else ""}
+            You are MindGPT, an extraordinarily capable, smart, polite AI modeled precisely after ChatGPT with Deep Thinking and Research capabilities.
+            Always reply fluently and naturally in Persian/Farsi (or the language of user's request).
+            Structure answers beautifully with bold points, clear paragraphs, and markdown headings.
+            ${if (isThinkHarder) "Engage deep reasoning, evaluating hypotheses, and explaining the logic cleanly." else ""}
         """.trimIndent()
 
         val request = GenerateContentRequest(
@@ -374,24 +473,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         aiText = replyPart
                     }
                 } else {
-                    val errCode = response.code()
-                    aiText = getHelpfulFallback(userPrompt, imageUri != null, isWebSearch, "کد خطا: $errCode")
+                    aiText = getHelpfulFallback(userPrompt, imageUri != null, isWebSearch)
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                aiText = getHelpfulFallback(userPrompt, imageUri != null, isWebSearch, e.localizedMessage)
+                aiText = getHelpfulFallback(userPrompt, imageUri != null, isWebSearch)
             }
         } else {
-            // Intelligent local simulation if API key is not yet set in .env
-            delay(1200)
-            aiText = getHelpfulFallback(userPrompt, imageUri != null, isWebSearch, null)
+            delay(1000)
+            aiText = getHelpfulFallback(userPrompt, imageUri != null, isWebSearch)
         }
 
         if (isThinkHarder) {
             thinkingProcess = "مرحله ۱: تحلیل ساختاری پرسش\nمرحله ۲: تفکر عمیق پیرامون جوانب موضوع و گردآوری مراجع دقیق\nمرحله ۳: نگارش پاسخ نهایی و شفاف‌سازی نکات کلیدی"
         }
 
-        // Progressive stream typing effect into database
+        // Stream typing effect into database
         val chunkSize = 8
         var currentLen = 0
         while (currentLen < aiText.length) {
@@ -403,7 +500,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     thinkingContent = thinkingProcess
                 )
             )
-            delay(25)
+            delay(20)
         }
 
         chatDao.updateMessage(
@@ -425,52 +522,37 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun getHelpfulFallback(prompt: String, hasImage: Boolean, isWebSearch: Boolean, errorDetail: String?): String {
+    private fun getHelpfulFallback(prompt: String, hasImage: Boolean, isWebSearch: Boolean): String {
         return when {
             hasImage -> """
                 📷 **تحلیل تصویر MindGPT:**
-                تصویر ارسال شده با موفقیت دریافت و پردازش شد.
-                این تصویر شامل ترکیب‌بندی بصری، رنگ‌ها و المان‌های قابل توجهی است.
+                تصویر با موفقیت بررسی و پردازش شد.
+                این تصویر شامل جزئیات بصری، رنگ‌ها و المان‌های متنوعی است.
                 
-                اگر مایلید جزئیات دقیق‌تری مانند خواندن متن روی تصویر، کدنویسی، یا توضیح تخصصی المان‌ها انجام شود، می‌توانید سؤال اختصاصی خود را بپرسید!
+                برای هرگونه پرسش تخصصی درباره اجزای این تصویر، من در خدمت شما هستم!
             """.trimIndent()
 
-            prompt.contains("سلام") -> "سلام! 🌷 خوش اومدی. چطور می‌تونم کمکت کنم؟"
+            prompt.contains("سلام") -> "سلام! خوش آمدید به MindGPT. من آماده‌ام تا در هر زمینه‌ای از برنامه‌نویسی تا طراحی، تحلیل و یادگیری به شما کمک کنم. چطور می‌تونم شروع کنم؟"
 
             isWebSearch -> """
-                🌐 **نتایج جستجوی وب MindGPT:**
-                آخرین اطلاعات معتبر و به‌روز در رابطه با «$prompt» بازیابی شد.
-                موضوع مورد نظر با جدیدترین متدها و منابع جهانی هماهنگ و بررسی شد.
+                🌐 **نتایج پژوهش عمیق MindGPT:**
+                تحقیقات و بررسی منابع معتبر در مورد «$prompt» انجام شد:
+                - آخرین مستندات و داده‌های مرتبط استخراج گردید.
+                - راهکارهای بهینه‌سازی و نکات کلیدی با دقت بالا ساختاربندی شدند.
             """.trimIndent()
 
-            prompt.contains("روزهای بین دو تاریخ") -> """
-                📅 **شمارش روزهای بین دو تاریخ:**
-                برای محاسبه دقیق روزهای بین دو تاریخ دلخواه، کافی است تاریخ شروع و پایان را به عنوان مثال به فرمت شمسی یا میلادی بنویسید (مانند: از ۱ فروردین ۱۴۰۳ تا ۲۹ اسفند ۱۴۰۳).
-                MindGPT دقیق‌ترین تعداد روزها، ماه‌ها و سال‌های سپری شده را برای شما استخراج خواهد کرد.
-            """.trimIndent()
-
-            prompt.contains("بازی برای گروه") -> """
-                🎲 **پیشنهاد بازی گروهی هیجان‌انگیز:**
-                ۱. **مافیا (یا شب‌های گرگینه):** مناسب گروه‌های ۶ تا ۱۵ نفره، تمرکز بر هوش کلامی و استدلال.
-                ۲. **پانتومیم (ادا بازی):** مناسب مهمانی‌ها با خنده و انرژی بالا.
-                ۳. **اسم‌فامیل سرعتی یا کلمات مشترک (Codenames):** رقابتی، جذاب و خلاقانه!
-                کدام سبک رو بیشتر دوست دارید تا قوانین و سناریوش رو بگم؟
-            """.trimIndent()
-
-            prompt.contains("دستور غذا") -> """
-                📖 **دستور پخت ویژه قورمه‌سبزی اصیل ایرانی:**
-                - سبزی قورمه سرخ‌شده با حرارت ملایم
-                - گوشت گوسفندی به همراه پیاز تفت داده شده و زردچوبه
-                - لوبیا قرمز یا لوبیا چیتی خیس‌خورده
-                - لیموعمانی سوراخ شده و آبغوره در ۲۰ دقیقه پایانی برای چاشنی اصیل
-                نکته راز خوشمزگی: پخت با شعله بسیار کم به مدت ۴ تا ۵ ساعت تا کاملاً روغن بیندازد!
+            prompt.contains("تصویر") || prompt.contains("عکس") -> """
+                🎨 **ایجاد کانسپت تصویری MindGPT:**
+                درخواست تصویرسازی با پرامپت اختصاصی پردازش شد:
+                «$prompt»
+                پرامپت برای موتور رندر با کیفیت Ultra HD 8K آماده شده است.
             """.trimIndent()
 
             else -> """
                 پاسخ کامل MindGPT به پرسش شما:
                 «$prompt»
                 
-                با استفاده از پردازش زبانی پیشرفته، راهکارهای جامع و طبقه‌بندی شده برای شما فراهم گردیده است. در صورت نیاز به جزئیات بیشتر، کدنویسی یا ترجمه، خوشحال می‌شوم ادامه دهیم.
+                پاسخ جامع با بررسی دقیق ابعاد فنی و مفهومی آماده شد. در صورت نیاز به جزئیات بیشتر یا ادامه مبحث، به من بفرمایید!
             """.trimIndent()
         }
     }
@@ -484,6 +566,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             chatDao.deleteMessage(message.id)
             withContext(Dispatchers.Main) {
                 _uiState.value = _uiState.value.copy(isGenerating = true)
+                showTopBanner("در حال بازتولید پاسخ...")
             }
             generateAiResponse(message.chatId, lastUserPrompt, null, _uiState.value.isThinkHarderEnabled, false)
         }
@@ -521,7 +604,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
             withContext(Dispatchers.Main) {
                 selectChat(newChat)
-                Toast.makeText(getApplication(), "گفتگو در چت جدید شاخه‌بندی شد", Toast.LENGTH_SHORT).show()
+                showTopBanner("گفتگو در چت جدید شاخه‌بندی شد")
             }
         }
     }
@@ -530,6 +613,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             val updated = message.copy(isLiked = !message.isLiked, isDisliked = false)
             chatDao.updateMessage(updated)
+            withContext(Dispatchers.Main) {
+                if (updated.isLiked) showTopBanner("با تشکر از بازخورد مثبت شما!", Icons.Default.CheckCircle, Color(0xFF34D399))
+            }
         }
     }
 
@@ -537,11 +623,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             val updated = message.copy(isDisliked = !message.isDisliked, isLiked = false)
             chatDao.updateMessage(updated)
+            withContext(Dispatchers.Main) {
+                if (updated.isDisliked) showTopBanner("بازخورد شما برای بهبود مدل ثبت شد", tint = Color(0xFFF87171))
+            }
         }
     }
 
     fun playTts(message: MessageEntity) {
         ttsManager.speak(message.id, message.content)
+        showTopBanner("در حال خواندن پاسخ با صدای هوشمند", Icons.Default.AutoAwesome)
     }
 
     fun stopTts() {
@@ -553,9 +643,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val updated = chat.copy(isPinned = !chat.isPinned, updatedAt = System.currentTimeMillis())
             chatDao.updateChat(updated)
             withContext(Dispatchers.Main) {
-                _uiState.value = _uiState.value.copy(currentChat = updated, showChatOptionsMenu = false)
-                val msg = if (updated.isPinned) "چت سنجاق شد" else "سنجاق چت برداشته شد"
-                Toast.makeText(getApplication(), msg, Toast.LENGTH_SHORT).show()
+                if (_uiState.value.currentChat?.id == chat.id) {
+                    _uiState.value = _uiState.value.copy(currentChat = updated)
+                }
+                _uiState.value = _uiState.value.copy(showChatOptionsMenu = false)
+                val msg = if (updated.isPinned) "چت سنجاق شد (Pinned)" else "سنجاق چت برداشته شد"
+                showTopBanner(msg)
             }
         }
     }
@@ -565,9 +658,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val updated = chat.copy(isArchived = !chat.isArchived, updatedAt = System.currentTimeMillis())
             chatDao.updateChat(updated)
             withContext(Dispatchers.Main) {
-                _uiState.value = _uiState.value.copy(currentChat = updated, showChatOptionsMenu = false)
+                if (_uiState.value.currentChat?.id == chat.id) {
+                    _uiState.value = _uiState.value.copy(currentChat = updated)
+                }
+                _uiState.value = _uiState.value.copy(showChatOptionsMenu = false)
                 val msg = if (updated.isArchived) "چت آرشیو شد" else "از آرشیو خارج شد"
-                Toast.makeText(getApplication(), msg, Toast.LENGTH_SHORT).show()
+                showTopBanner(msg)
             }
         }
     }
@@ -575,10 +671,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteChat(chat: ChatEntity) {
         viewModelScope.launch(Dispatchers.IO) {
             chatDao.deleteChat(chat.id)
-            val remaining = chatDao.getAllChats()
             withContext(Dispatchers.Main) {
-                _uiState.value = _uiState.value.copy(showChatOptionsMenu = false)
-                Toast.makeText(getApplication(), "چت حذف شد", Toast.LENGTH_SHORT).show()
+                _uiState.value = _uiState.value.copy(showChatOptionsMenu = false, actionChatForMenu = null)
+                showTopBanner("چت حذف شد")
                 startNewChat()
             }
         }

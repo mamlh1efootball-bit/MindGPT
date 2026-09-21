@@ -1,0 +1,87 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="128dp"
+    android:height="128dp"
+    android:viewportWidth="128"
+    android:viewportHeight="128">
+
+    <!-- Background circle glow -->
+    <path
+        android:pathData="M64,64m-58,0a58,58 0,1 1,116 0a58,58 0,1 1,-116 0">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:centerX="64"
+                android:centerY="64"
+                android:gradientRadius="58"
+                android:type="radial">
+                <item android:color="#1A3B82F6" android:offset="0.0" />
+                <item android:color="#00000000" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Cosmic Orbital Ring Back Segment -->
+    <path
+        android:pathData="M18,78 C24,42 98,28 110,50"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:startX="18"
+                android:startY="78"
+                android:endX="110"
+                android:endY="50"
+                android:type="linear">
+                <item android:color="#60A5FA" android:offset="0.0" />
+                <item android:color="#93C5FD" android:offset="0.5" />
+                <item android:color="#3B82F6" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Central High-Tech 'M' Icon Body -->
+    <path
+        android:pathData="M36,92 L36,40 L50,40 L64,64 L78,40 L92,40 L92,92 L80,92 L80,58 L68,78 L60,78 L48,58 L48,92 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="36"
+                android:startY="40"
+                android:endX="92"
+                android:endY="92"
+                android:type="linear">
+                <item android:color="#FFFFFF" android:offset="0.0" />
+                <item android:color="#E2E8F0" android:offset="0.5" />
+                <item android:color="#93C5FD" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Cosmic Orbital Ring Front Crossing Segment -->
+    <path
+        android:pathData="M110,50 C114,64 78,98 18,78"
+        android:strokeWidth="3"
+        android:strokeLineCap="round">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:startX="110"
+                android:startY="50"
+                android:endX="18"
+                android:endY="78"
+                android:type="linear">
+                <item android:color="#38BDF8" android:offset="0.0" />
+                <item android:color="#60A5FA" android:offset="0.4" />
+                <item android:color="#818CF8" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Star Satellite 1 -->
+    <path
+        android:pathData="M102,52 L104,48 L108,46 L104,44 L102,40 L100,44 L96,46 L100,48 Z"
+        android:fillColor="#FFFFFF" />
+
+    <!-- Star Satellite 2 -->
+    <path
+        android:pathData="M26,76 L27.5,73 L30.5,71.5 L27.5,70 L26,67 L24.5,70 L21.5,71.5 L24.5,73 Z"
+        android:fillColor="#BAE6FD" />
+</vector>

@@ -1,7 +1,9 @@
 package com.example.ui.components
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,6 +29,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.LocalLibrary
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.HorizontalDivider
@@ -55,17 +58,22 @@ import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimaryWhite
 import com.example.ui.theme.TextSecondaryGray
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ChatSideDrawer(
     chats: List<ChatEntity>,
     activeChatId: String?,
     onSelectChat: (ChatEntity) -> Unit,
+    onChatLongClick: (ChatEntity) -> Unit,
     onNewChatClick: () -> Unit,
     onImagesClick: () -> Unit,
     onSearchClick: () -> Unit,
     onSettingsClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val pinnedChats = chats.filter { it.isPinned }
+    val normalChats = chats.filter { !it.isPinned }
+
     Column(
         modifier = modifier
             .fillMaxHeight()
@@ -76,7 +84,7 @@ fun ChatSideDrawer(
             .padding(vertical = 12.dp)
             .testTag("chat_side_drawer")
     ) {
-        // Header: Search Icon + "MindGPT" (Screenshot 10)
+        // Header: Search Icon + "MindGPT"
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -107,8 +115,7 @@ fun ChatSideDrawer(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Fixed navigation sections matching Screenshot 10:
-        // Images, Library, Projects, Scheduled, Plugins
+        // Fixed navigation sections
         Column(modifier = Modifier.padding(horizontal = 8.dp)) {
             DrawerSectionItem(
                 title = "Images",
@@ -129,12 +136,6 @@ fun ChatSideDrawer(
                 testTag = "drawer_projects"
             )
             DrawerSectionItem(
-                title = "Scheduled",
-                icon = Icons.Default.AccessTime,
-                onClick = {},
-                testTag = "drawer_scheduled"
-            )
-            DrawerSectionItem(
                 title = "Plugins",
                 icon = Icons.Default.Extension,
                 onClick = {},
@@ -150,32 +151,113 @@ fun ChatSideDrawer(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
         )
 
-        // Chat History List (Screenshot 10)
+        // Chat History List (With Pinned section on top)
         LazyColumn(
             modifier = Modifier
                 .weight(1f)
                 .padding(horizontal = 8.dp)
         ) {
-            items(chats, key = { it.id }) { chat ->
-                val isSelected = chat.id == activeChatId
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(if (isSelected) ChatSurfaceHighlight else Color.Transparent)
-                        .clickable { onSelectChat(chat) }
-                        .padding(horizontal = 14.dp, vertical = 10.dp)
-                        .testTag("drawer_chat_item_${chat.id}"),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = chat.title,
-                        color = if (isSelected) TextPrimaryWhite else TextSecondaryGray,
-                        fontSize = 14.sp,
-                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+            // Pinned Chats Section
+            if (pinnedChats.isNotEmpty()) {
+                item {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PushPin,
+                            contentDescription = null,
+                            tint = AccentActionBlue,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "سنجاق شده (Pinned)",
+                            color = AccentActionBlue,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+
+                items(pinnedChats, key = { "pinned_${it.id}" }) { chat ->
+                    val isSelected = chat.id == activeChatId
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (isSelected) ChatSurfaceHighlight else Color.Transparent)
+                            .combinedClickable(
+                                onClick = { onSelectChat(chat) },
+                                onLongClick = { onChatLongClick(chat) }
+                            )
+                            .padding(horizontal = 14.dp, vertical = 10.dp)
+                            .testTag("drawer_chat_item_${chat.id}"),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = chat.title,
+                            color = if (isSelected) TextPrimaryWhite else TextSecondaryGray,
+                            fontSize = 14.sp,
+                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Icon(
+                            imageVector = Icons.Default.PushPin,
+                            contentDescription = "Pinned",
+                            tint = AccentActionBlue,
+                            modifier = Modifier.size(13.dp)
+                        )
+                    }
+                }
+
+                item {
+                    HorizontalDivider(
+                        color = BorderSubtle.copy(alpha = 0.5f),
+                        thickness = 1.dp,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                     )
+                }
+            }
+
+            // Normal Chats Section
+            if (normalChats.isEmpty() && pinnedChats.isEmpty()) {
+                item {
+                    Text(
+                        text = "گفتگویی وجود ندارد",
+                        color = TextMuted,
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)
+                    )
+                }
+            } else {
+                items(normalChats, key = { it.id }) { chat ->
+                    val isSelected = chat.id == activeChatId
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (isSelected) ChatSurfaceHighlight else Color.Transparent)
+                            .combinedClickable(
+                                onClick = { onSelectChat(chat) },
+                                onLongClick = { onChatLongClick(chat) }
+                            )
+                            .padding(horizontal = 14.dp, vertical = 10.dp)
+                            .testTag("drawer_chat_item_${chat.id}"),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = chat.title,
+                            color = if (isSelected) TextPrimaryWhite else TextSecondaryGray,
+                            fontSize = 14.sp,
+                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
             }
         }
@@ -186,7 +268,7 @@ fun ChatSideDrawer(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
         )
 
-        // Bottom User Row + Blue "Chat ✏️" Button (Screenshot 10)
+        // Bottom Bar without the "S" button (User requested removing S)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -194,45 +276,30 @@ fun ChatSideDrawer(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // User Avatar & Settings
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
+            // Settings button
+            IconButton(
+                onClick = onSettingsClick,
                 modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable { onSettingsClick() }
-                    .padding(4.dp)
-                    .testTag("drawer_user_profile")
+                    .size(38.dp)
+                    .clip(CircleShape)
+                    .background(ChatSurfaceElevated)
+                    .testTag("drawer_settings_button")
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(ChatSurfaceElevated),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "S",
-                        color = TextPrimaryWhite,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                Spacer(modifier = Modifier.width(8.dp))
                 Icon(
                     imageVector = Icons.Default.Settings,
                     contentDescription = "Settings",
                     tint = TextSecondaryGray,
-                    modifier = Modifier.size(18.dp)
+                    modifier = Modifier.size(20.dp)
                 )
             }
 
-            // Blue "Chat ✏️" New Chat button (Screenshot 10)
+            // Blue "Chat ✏️" New Chat button
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(20.dp))
                     .background(AccentActionBlue)
                     .clickable { onNewChatClick() }
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .padding(horizontal = 18.dp, vertical = 9.dp)
                     .testTag("drawer_new_chat_button"),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center

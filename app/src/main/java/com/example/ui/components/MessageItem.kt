@@ -6,9 +6,16 @@ import android.content.Context
 import android.content.Intent
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +30,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
@@ -45,6 +53,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -65,20 +74,23 @@ import com.example.ui.theme.TextPrimaryWhite
 import com.example.ui.theme.TextSecondaryGray
 import com.example.ui.theme.UserBubbleBlue
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MessageItem(
     message: MessageEntity,
+    isGeneratingThisMessage: Boolean = false,
     onMenuClick: () -> Unit,
     onPlayTts: () -> Unit,
     onToggleLike: () -> Unit,
     onToggleDislike: () -> Unit,
+    onCopySuccess: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     var isThinkingExpanded by remember { mutableStateOf(false) }
 
     if (message.role == "user") {
-        // User Message Bubble (Screenshot 1: blue pill bubble)
+        // User Message Bubble (Screenshot 1: blue pill bubble with Long-Press context menu)
         Column(
             modifier = modifier
                 .fillMaxWidth()
@@ -109,8 +121,12 @@ fun MessageItem(
                         .widthIn(max = 280.dp)
                         .clip(RoundedCornerShape(20.dp))
                         .background(UserBubbleBlue)
+                        .combinedClickable(
+                            onClick = {},
+                            onLongClick = onMenuClick
+                        )
                         .padding(horizontal = 16.dp, vertical = 10.dp)
-                        .testTag("user_message_bubble")
+                        .testTag("user_message_bubble_${message.id}")
                 ) {
                     Text(
                         text = message.content,
@@ -123,7 +139,7 @@ fun MessageItem(
             }
         }
     } else {
-        // Assistant Message (Screenshots 1, 5: clean text on black, action buttons row)
+        // Assistant Message (Screenshots 1, 5)
         Column(
             modifier = modifier
                 .fillMaxWidth()
@@ -157,7 +173,7 @@ fun MessageItem(
                 }
             }
 
-            // Thinking block if "Think harder" was used
+            // Thinking block if "Think harder" was used or active
             if (!message.thinkingContent.isNullOrBlank()) {
                 Column(
                     modifier = Modifier
@@ -178,7 +194,7 @@ fun MessageItem(
                             Icon(
                                 imageVector = Icons.Default.Psychology,
                                 contentDescription = "Thought process",
-                                tint = TextSecondaryGray,
+                                tint = AccentActionBlue,
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
@@ -209,128 +225,163 @@ fun MessageItem(
                 }
             }
 
-            // Assistant Response Text
-            Text(
-                text = message.content,
-                color = TextPrimaryWhite,
-                fontSize = 15.sp,
-                lineHeight = 24.sp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("assistant_message_content")
-            )
+            // Active Thinking / Researching Pulse Indicator when empty or generating
+            if (message.content.isEmpty()) {
+                val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+                val alpha by infiniteTransition.animateFloat(
+                    initialValue = 0.4f,
+                    targetValue = 1.0f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(800),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "pulseAlpha"
+                )
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Action Buttons Row matching Screenshots 1, 5:
-            // [3-dots] [Share] [Speaker] [Thumbs down] [Thumbs up] [Copy]
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                // 3-dots Menu button
-                IconButton(
-                    onClick = onMenuClick,
+                Row(
                     modifier = Modifier
-                        .size(32.dp)
-                        .testTag("msg_action_menu")
+                        .padding(vertical = 8.dp)
+                        .alpha(alpha),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = Icons.Default.MoreHoriz,
-                        contentDescription = "Message options",
-                        tint = IconMuted,
+                        imageVector = if (message.isWebSearch) Icons.Default.Language else Icons.Default.Psychology,
+                        contentDescription = null,
+                        tint = AccentActionBlue,
                         modifier = Modifier.size(18.dp)
                     )
-                }
-
-                // Share button
-                IconButton(
-                    onClick = {
-                        val shareIntent = Intent().apply {
-                            action = Intent.ACTION_SEND
-                            putExtra(Intent.EXTRA_TEXT, message.content)
-                            type = "text/plain"
-                        }
-                        context.startActivity(Intent.createChooser(shareIntent, "اشتراک‌گذاری پاسخ"))
-                    },
-                    modifier = Modifier
-                        .size(32.dp)
-                        .testTag("msg_action_share")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Share,
-                        contentDescription = "Share",
-                        tint = IconMuted,
-                        modifier = Modifier.size(18.dp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (message.isWebSearch) "در حال جستجو و تحلیل مراجع وب..." else "در حال تفکر و پردازش پاسخ...",
+                        color = TextSecondaryGray,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
                     )
                 }
-
-                // Speaker (Read aloud / TTS) button (Screenshots 1, 7, 8)
-                IconButton(
-                    onClick = onPlayTts,
+            } else {
+                // Assistant Response Text
+                Text(
+                    text = message.content,
+                    color = TextPrimaryWhite,
+                    fontSize = 15.sp,
+                    lineHeight = 24.sp,
                     modifier = Modifier
-                        .size(32.dp)
-                        .testTag("msg_action_speaker")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.VolumeUp,
-                        contentDescription = "Listen",
-                        tint = IconMuted,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
+                        .fillMaxWidth()
+                        .testTag("assistant_message_content")
+                )
 
-                // Thumbs Down button
-                IconButton(
-                    onClick = onToggleDislike,
-                    modifier = Modifier
-                        .size(32.dp)
-                        .testTag("msg_action_dislike")
-                ) {
-                    Icon(
-                        imageVector = if (message.isDisliked) Icons.Default.ThumbDown else Icons.Outlined.ThumbDown,
-                        contentDescription = "Dislike",
-                        tint = if (message.isDisliked) AccentActionBlue else IconMuted,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
+                Spacer(modifier = Modifier.height(8.dp))
 
-                // Thumbs Up button
-                IconButton(
-                    onClick = onToggleLike,
+                // Action Buttons Row matching Screenshots 1, 5:
+                // [3-dots] [Share] [Speaker] [Thumbs down] [Thumbs up] [Copy]
+                Row(
                     modifier = Modifier
-                        .size(32.dp)
-                        .testTag("msg_action_like")
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Icon(
-                        imageVector = if (message.isLiked) Icons.Default.ThumbUp else Icons.Outlined.ThumbUp,
-                        contentDescription = "Like",
-                        tint = if (message.isLiked) AccentActionBlue else IconMuted,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
+                    // 3-dots Menu button
+                    IconButton(
+                        onClick = onMenuClick,
+                        modifier = Modifier
+                            .size(32.dp)
+                            .testTag("msg_action_menu")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MoreHoriz,
+                            contentDescription = "Message options",
+                            tint = IconMuted,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
 
-                // Copy button
-                IconButton(
-                    onClick = {
-                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        val clip = ClipData.newPlainText("MindGPT", message.content)
-                        clipboard.setPrimaryClip(clip)
-                        Toast.makeText(context, "کپی شد", Toast.LENGTH_SHORT).show()
-                    },
-                    modifier = Modifier
-                        .size(32.dp)
-                        .testTag("msg_action_copy")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.ContentCopy,
-                        contentDescription = "Copy text",
-                        tint = IconMuted,
-                        modifier = Modifier.size(17.dp)
-                    )
+                    // Share button
+                    IconButton(
+                        onClick = {
+                            val shareIntent = Intent().apply {
+                                action = Intent.ACTION_SEND
+                                putExtra(Intent.EXTRA_TEXT, message.content)
+                                type = "text/plain"
+                            }
+                            context.startActivity(Intent.createChooser(shareIntent, "اشتراک‌گذاری پاسخ"))
+                        },
+                        modifier = Modifier
+                            .size(32.dp)
+                            .testTag("msg_action_share")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Share,
+                            contentDescription = "Share",
+                            tint = IconMuted,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    // Speaker (Read aloud / TTS) button
+                    IconButton(
+                        onClick = onPlayTts,
+                        modifier = Modifier
+                            .size(32.dp)
+                            .testTag("msg_action_speaker")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.VolumeUp,
+                            contentDescription = "Listen",
+                            tint = IconMuted,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    // Thumbs Down button
+                    IconButton(
+                        onClick = onToggleDislike,
+                        modifier = Modifier
+                            .size(32.dp)
+                            .testTag("msg_action_dislike")
+                    ) {
+                        Icon(
+                            imageVector = if (message.isDisliked) Icons.Default.ThumbDown else Icons.Outlined.ThumbDown,
+                            contentDescription = "Dislike",
+                            tint = if (message.isDisliked) AccentActionBlue else IconMuted,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    // Thumbs Up button
+                    IconButton(
+                        onClick = onToggleLike,
+                        modifier = Modifier
+                            .size(32.dp)
+                            .testTag("msg_action_like")
+                    ) {
+                        Icon(
+                            imageVector = if (message.isLiked) Icons.Default.ThumbUp else Icons.Outlined.ThumbUp,
+                            contentDescription = "Like",
+                            tint = if (message.isLiked) AccentActionBlue else IconMuted,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    // Copy button
+                    IconButton(
+                        onClick = {
+                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            val clip = ClipData.newPlainText("MindGPT", message.content)
+                            clipboard.setPrimaryClip(clip)
+                            onCopySuccess()
+                        },
+                        modifier = Modifier
+                            .size(32.dp)
+                            .testTag("msg_action_copy")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ContentCopy,
+                            contentDescription = "Copy text",
+                            tint = IconMuted,
+                            modifier = Modifier.size(17.dp)
+                        )
+                    }
                 }
             }
         }
